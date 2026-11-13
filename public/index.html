@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="id"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Izin Admin</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0e1621;color:#e8eef6;font:15px/1.5 system-ui,sans-serif}
+.w{max-width:700px;margin:0 auto;padding:18px 14px 40px}h1{font-size:22px;margin:0}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.top a{color:#93a3b6;font-size:13px;cursor:pointer;text-decoration:underline}
+.badge{font-size:12px;padding:3px 10px;border-radius:99px;border:1px solid #5aa2ff;color:#5aa2ff}.badge.o{border-color:#f0b43c;color:#f0b43c}
+.c{background:#16212f;border:1px solid #26364a;border-radius:14px;padding:14px;margin-bottom:12px}
+label{display:block;font-size:13px;color:#93a3b6;margin:10px 0 4px}
+input,select,textarea{width:100%;padding:10px;border-radius:9px;border:1px solid #26364a;background:#0e1621;color:#e8eef6;font:inherit}
+textarea{min-height:80px}.r{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button{font:inherit;border:0;border-radius:9px;padding:10px 14px;background:#2f7de1;color:#fff;font-weight:600;cursor:pointer}
+.full{width:100%;margin-top:14px}.err{color:#ff6b6b;margin-top:8px;min-height:18px}
+.m{color:#93a3b6;font-size:13px}.h{display:flex;justify-content:space-between;gap:8px}
+.st{font-size:12px;font-weight:700;padding:3px 9px;border-radius:99px;border:1px solid;white-space:nowrap;height:fit-content}
+.p{color:#f0b43c}.y{color:#3ccf82}.n{color:#ff6b6b}
+.act{display:flex;gap:8px;margin-top:10px}.act button{flex:1;font-size:18px}
+.ok{background:#1a9d55}.no{background:#d93a3a}.rs{background:transparent;border:1px solid #26364a;color:#93a3b6;font-size:13px}
+.hide{display:none}
+</style></head><body><div class="w">
+<div class="top"><div><h1>Izin Admin</h1><a id="lg"></a></div><span id="badge" class="badge">Role: Admin</span></div>
+
+<form id="fo" class="c hide"><label>Password Owner</label><input type="password" id="po">
+<button class="full">Masuk sebagai Owner</button><div class="err" id="eo"></div></form>
+
+<form id="f" class="c">
+<label>Nama Admin</label><input id="a" maxlength="40" required>
+<label>Nama IC</label><input id="i" maxlength="40" required>
+<div class="r"><div><label>Rank Admin</label><select id="rk"></select></div>
+<div><label>Izin berapa hari</label><input type="number" id="d" min="1" max="60" value="1" required></div></div>
+<label>Alasan</label><textarea id="al" maxlength="500" required></textarea>
+<button class="full" id="sb">Kirim Izin</button><div class="err" id="e"></div></form>
+
+<h2 style="font-size:16px">Daftar Izin</h2><div id="list"></div>
+</div>
+<script>
+const $=i=>document.getElementById(i);
+const API="/api/izin";
+let token=localStorage.getItem("izin_owner")||"",owner=false;
+["Helper","Junior Administrator","Senior Administrator","High Administrator","Head Administrator","Management","Chief Executive","Developer","Co-Owner","Owner","Founder"]
+ .forEach(x=>{const o=document.createElement("option");o.textContent=x;$("rk").appendChild(o)});
+const hdr=()=>({"content-type":"application/json",...(token?{authorization:"Bearer "+token}:{})});
+async function post(b){const r=await fetch(API,{method:"POST",headers:hdr(),body:JSON.stringify(b)});return{ok:r.ok,d:await r.json().catch(()=>({}))}}
+
+function role(){
+  $("badge").textContent="Role: "+(owner?"Owner":"Admin");$("badge").className="badge"+(owner?" o":"");
+  const l=$("lg");l.textContent=owner?"Logout":"Login Owner";
+  l.onclick=()=>{if(owner){token="";localStorage.removeItem("izin_owner");owner=false;role();load()}else $("fo").classList.toggle("hide")};
+}
+async function load(){
+  const box=$("list");
+  try{
+    const r=await fetch(API,{headers:hdr()});const d=await r.json();
+    if(owner!==d.owner){owner=d.owner;if(!owner&&token){token="";localStorage.removeItem("izin_owner")}role()}
+    box.textContent="";
+    if(!d.items.length){const p=document.createElement("p");p.className="m";p.textContent="Belum ada pengajuan izin.";box.appendChild(p);return}
+    d.items.forEach(x=>{
+      const c=document.createElement("div");c.className="c";
+      const h=document.createElement("div");h.className="h";
+      const l=document.createElement("div");
+      const n=document.createElement("b");n.textContent=x.admin+" ("+x.ic+")";
+      const m=document.createElement("div");m.className="m";
+      m.textContent=x.rank+" · "+x.hari+" hari · "+new Date(x.ts).toLocaleDateString("id-ID",{day:"numeric",month:"short",year:"numeric"});
+      l.append(n,m);
+      const s=document.createElement("span");s.className="st "+(x.status=="ok"?"y":x.status=="no"?"n":"p");
+      s.textContent=x.status=="ok"?"✔ Disetujui":x.status=="no"?"✖ Ditolak":"Menunggu";
+      h.append(l,s);c.appendChild(h);
+      const a=document.createElement("p");a.style.cssText="white-space:pre-wrap;word-break:break-word;margin:8px 0 0";a.textContent=x.alasan;c.appendChild(a);
+      if(owner){
+        const ac=document.createElement("div");ac.className="act";
+        [["ok","✔"],["no","✖"]].forEach(([st,t])=>{if(x.status===st)return;const b=document.createElement("button");b.className=st;b.textContent=t;b.onclick=()=>dec(x.id,st);ac.appendChild(b)});
+        if(x.status!=="pending"){const b=document.createElement("button");b.className="rs";b.textContent="Reset";b.onclick=()=>dec(x.id,"pending");ac.appendChild(b)}
+        c.appendChild(ac);
+      }
+      box.appendChild(c);
+    });
+  }catch(e){box.textContent="Gagal memuat data."}
+}
+async function dec(id,status){await post({aksi:"putusan",id,status});load()}
+
+$("fo").onsubmit=async e=>{e.preventDefault();$("eo").textContent="";
+  const r=await post({aksi:"login",pass:$("po").value});
+  if(!r.ok){$("eo").textContent=r.d.error||"Gagal login.";return}
+  token=r.d.token;localStorage.setItem("izin_owner",token);$("po").value="";$("fo").classList.add("hide");load()};
+$("f").onsubmit=async e=>{e.preventDefault();$("e").textContent="";$("sb").disabled=true;
+  const r=await post({aksi:"kirim",admin:$("a").value,ic:$("i").value,rank:$("rk").value,hari:$("d").value,alasan:$("al").value});
+  $("sb").disabled=false;
+  if(!r.ok){$("e").textContent=r.d.error||"Gagal mengirim.";return}
+  $("a").value=$("i").value=$("al").value="";$("d").value=1;load()};
+role();load();
+</script></body></html>
